@@ -13,6 +13,8 @@ import static org.junit.Assert.*;
 import org.junit.Assert;
 import junit.framework.JUnit4TestAdapter;
 
+import java.util.Iterator;
+
 public class TupleDescTest extends SimpleDbTestBase {
 
     /**
@@ -171,6 +173,162 @@ public class TupleDescTest extends SimpleDbTestBase {
         assertNotEquals(intString, singleInt2);
         assertEquals(intString, intString2);
         assertEquals(intString2, intString);
+    }
+
+    /**
+     * Verifies constructor validation for invalid inputs.
+     * Ensures IllegalArgumentException is thrown for:
+     *  - null type array
+     *  - empty type array
+     *  - null field array (in named constructor)
+     *  - mismatched type/name array lengths
+     */
+    @Test public void testConstructorValidation() {
+        // null type array
+        try {
+            new TupleDesc(null);
+            Assert.fail("Expected IllegalArgumentException for null type array");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
+
+        // empty type array
+        try {
+            new TupleDesc(new Type[]{});
+            Assert.fail("Expected IllegalArgumentException for empty type array");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
+
+        // null field array
+        try {
+            new TupleDesc(new Type[]{Type.INT_TYPE}, null);
+            Assert.fail("Expected IllegalArgumentException for null field array");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
+
+        // mismatched array lengths
+        try {
+            new TupleDesc(new Type[]{Type.INT_TYPE}, new String[]{"a", "b"});
+            Assert.fail("Expected IllegalArgumentException for mismatched array lengths");
+        } catch (IllegalArgumentException e) {
+            // expected
+        }
+    }
+
+    /**
+     * Verifies getFieldName and getFieldType throw NoSuchElementException
+     * for invalid indices (negative and out-of-bounds).
+     */
+    @Test public void testInvalidFieldAccess() {
+        TupleDesc td = Utility.getTupleDesc(2);
+
+        try {
+            td.getFieldName(-1);
+            Assert.fail("Expected NoSuchElementException for negative index");
+        } catch (NoSuchElementException e) {
+            // expected
+        }
+
+        try {
+            td.getFieldName(2);
+            Assert.fail("Expected NoSuchElementException for out-of-bounds index");
+        } catch (NoSuchElementException e) {
+            // expected
+        }
+
+        try {
+            td.getFieldType(-1);
+            Assert.fail("Expected NoSuchElementException for negative index");
+        } catch (NoSuchElementException e) {
+            // expected
+        }
+
+        try {
+            td.getFieldType(2);
+            Assert.fail("Expected NoSuchElementException for out-of-bounds index");
+        } catch (NoSuchElementException e) {
+            // expected
+        }
+    }
+
+    /**
+     * Verifies iterator correctness:
+     *  - iterates exactly numFields() times
+     *  - returns correct TDItems in order
+     *  - throws NoSuchElementException when exhausted
+     */
+    @Test public void testIteratorBehavior() {
+        TupleDesc td = Utility.getTupleDesc(3, "it");
+        Iterator<TupleDesc.TDItem> it = td.iterator();
+
+        int count = 0;
+        while (it.hasNext()) {
+            TupleDesc.TDItem item = it.next();
+            assertEquals(Type.INT_TYPE, item.fieldType);
+            assertEquals("it" + count, item.fieldName);
+            count++;
+        }
+
+        assertEquals(3, count);
+
+        try {
+            it.next();
+            Assert.fail("Expected NoSuchElementException after iterator exhaustion");
+        } catch (NoSuchElementException e) {
+            // expected
+        }
+    }
+
+    /**
+     * Verifies equality edge cases:
+     *  - different number of fields
+     *  - same number of fields but different type order
+     */
+    @Test public void testEqualsEdgeCases() {
+        TupleDesc td1 = new TupleDesc(new Type[]{Type.INT_TYPE, Type.STRING_TYPE});
+        TupleDesc td2 = new TupleDesc(new Type[]{Type.STRING_TYPE, Type.INT_TYPE});
+        TupleDesc td3 = new TupleDesc(new Type[]{Type.INT_TYPE});
+
+        assertNotEquals(td1, td2);
+        assertNotEquals(td1, td3);
+        assertNotEquals(td2, td3);
+    }
+
+    /**
+     * Verifies merge preserves order and supports empty names.
+     */
+    @Test public void testMergeWithNullFieldNames() {
+        TupleDesc td1 = new TupleDesc(new Type[]{Type.INT_TYPE});
+        TupleDesc td2 = new TupleDesc(new Type[]{Type.STRING_TYPE});
+
+        TupleDesc merged = TupleDesc.merge(td1, td2);
+
+        assertEquals(2, merged.numFields());
+        assertEquals(Type.INT_TYPE, merged.getFieldType(0));
+        assertEquals(Type.STRING_TYPE, merged.getFieldType(1));
+
+        assertNull(merged.getFieldName(0));
+        assertNull(merged.getFieldName(1));
+    }
+
+    /**
+     * Verifies toString produces a non-empty representation
+     * containing type information for all fields.
+     */
+    @Test public void testToStringContainsAllFields() {
+        TupleDesc td = new TupleDesc(
+                new Type[]{Type.INT_TYPE, Type.STRING_TYPE},
+                new String[]{"a", "b"}
+        );
+
+        String repr = td.toString();
+
+        assertTrue(repr.contains("a"));
+        assertTrue(repr.contains("b"));
+        assertTrue(repr.contains(Type.INT_TYPE.toString()));
+        assertTrue(repr.contains(Type.STRING_TYPE.toString()));
     }
 
     /**
